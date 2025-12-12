@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquid Legacy Financial - Get Your Custom Quote</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="chatbot-root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Main Insurance Chatbot Component
+        const InsuranceChatbot = () => {
+            // State management for the conversation
+            const [messages, setMessages] = useState([]);
+            const [currentInput, setCurrentInput] = useState('');
+            const [questionIndex, setQuestionIndex] = useState(0);
+            const [userData, setUserData] = useState({});
+            const [isTyping, setIsTyping] = useState(false);
+            const [conversationComplete, setConversationComplete] = useState(false);
+            const messagesEndRef = useRef(null);
+
+            // Auto-scroll to bottom when new messages appear
+            const scrollToBottom = () => {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            };
+
+            useEffect(() => {
+                scrollToBottom();
+            }, [messages]);
+
+            // Initialize the conversation when component loads
+            useEffect(() => {
+                addBotMessage("Hey there! I'm the Liquid Legacy Financial advisor bot. I'm here to help understand your situation so we can show you exactly how to protect what matters most to you. This'll take about 5-7 minutes, and everything stays confidential. Sound good?", 0);
+                
+                setTimeout(() => {
+                    addBotMessage("Let's start simple - what's your first name?", 1500);
+                }, 1500);
+            }, []);
+
+            // Complete question flow with adaptive logic
+            const questionFlow = [
+                {
+                    id: 'name',
+                    field: 'firstName',
+                    followUp: (data) => `Great to meet you, ${data.firstName}! How old are you?`
+                },
+                {
+                    id: 'age',
+                    field: 'age',
+                    validate: (val) => !isNaN(val) && val >= 18 && val <= 80,
+                    followUp: (data) => {
+                        const age = parseInt(data.age);
+                        if (age < 25) return "Got it. And what's your email address so we can send you personalized recommendations?";
+                        if (age > 40) return "Perfect. What's your email address?";
+                        return "Right in the sweet spot. What's your email address?";
+                    }
+                },
+                {
+                    id: 'email',
+                    field: 'email',
+                    validate: (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+                    followUp: () => "And your phone number? (We'll only use it for important follow-ups)"
+                },
+                {
+                    id: 'phone',
+                    field: 'phone',
+                    validate: (val) => val.replace(/\D/g, '').length >= 10,
+                    followUp: () => "Perfect. Now tell me - are you single, in a relationship, married, or have kids?"
+                },
+                {
+                    id: 'relationship',
+                    field: 'relationshipStatus',
+                    options: ['Single, no kids', 'In a relationship', 'Married, no kids', 'Married with kids', 'Single parent'],
+                    followUp: (data) => {
+                        if (data.relationshipStatus.includes('kids') || data.relationshipStatus.includes('parent')) {
+                            return "How many kids do you have?";
+                        }
+                        return "Are you renting, owning, or living with family right now?";
+                    }
+                },
+                {
+                    id: 'kids_count',
+                    field: 'numberOfKids',
+                    conditional: (data) => data.relationshipStatus && (data.relationshipStatus.includes('kids') || data.relationshipStatus.includes('parent')),
+                    validate: (val) => !isNaN(val) && val >= 0,
+                    followUp: () => "That's beautiful. Are you renting, owning, or living with family right now?"
+                },
+                {
+                    id: 'housing',
+                    field: 'housingStatus',
+                    options: ['Renting', 'Own my home', 'Living with family', 'Other'],
+                    followUp: () => "What do you do for work?"
+                },
+                {
+                    id: 'work',
+                    field: 'occupation',
+                    followUp: () => "How long have you been doing that?"
+                },
+                {
+                    id: 'work_duration',
+                    field: 'workDuration',
+                    followUp: () => "Are you a W2 employee, contractor/1099, or self-employed/business owner?"
+                },
+                {
+                    id: 'employment_type',
+                    field: 'employmentType',
+                    options: ['W2 Employee', 'Contractor/1099', 'Self-employed', 'Business Owner', 'Multiple sources'],
+                    followUp: () => "On average, what do you take home per month after taxes? Just give me a ballpark."
+                },
+                {
+                    id: 'income',
+                    field: 'monthlyIncome',
+                    followUp: (data) => {
+                        const income = parseInt(data.monthlyIncome.replace(/\D/g, ''));
+                        if (income < 3000) {
+                            return "Got it. Do you have any side income? Uber, DoorDash, freelance, anything like that?";
+                        }
+                        return "Solid. Do you have any additional income streams? Side gig, rental income, investments?";
+                    }
+                },
+                {
+                    id: 'side_income',
+                    field: 'sideIncome',
+                    options: ['No, just my main income', 'Yes, side gig ($500-2000/mo)', 'Yes, substantial ($2000+/mo)', 'Yes, but irregular'],
+                    followUp: () => "Here's an important one - if your income stopped for 3 months, what would happen?"
+                },
+                {
+                    id: 'income_loss_impact',
+                    field: 'incomeLossImpact',
+                    options: [
+                        "I'd be fine - have savings",
+                        "I'd struggle but survive",
+                        "I'd be in serious trouble",
+                        "I'd lose everything"
+                    ],
+                    followUp: () => "Who depends on your income right now? Kids, partner, parents, siblings, anyone?"
+                },
+                {
+                    id: 'dependents',
+                    field: 'dependents',
+                    followUp: () => "Do you have any life insurance right now? Through work or on your own?"
+                },
+                {
+                    id: 'existing_coverage',
+                    field: 'existingCoverage',
+                    options: ['No coverage', 'Through work only', 'Personal policy', 'Both work and personal', 'Not sure'],
+                    followUp: (data) => {
+                        if (data.existingCoverage === 'No coverage') {
+                            return "Has anyone ever explained how life insurance can work as both protection AND a wealth-building tool?";
+                        }
+                        return "Do you know roughly how much coverage you have and what type it is?";
+                    }
+                },
+                {
+                    id: 'coverage_details',
+                    field: 'coverageDetails',
+                    conditional: (data) => data.existingCoverage !== 'No coverage',
+                    followUp: () => "Has anyone shown you how life insurance can also build wealth while you're alive through living benefits?"
+                },
+                {
+                    id: 'living_benefits_awareness',
+                    field: 'livingBenefitsAwareness',
+                    options: ['No, tell me more', 'Heard of it but don't understand it', 'Yes, that is why I am here', 'Yes, but skeptical'],
+                    followUp: (data) => {
+                        const age = parseInt(data.age);
+                        const income = parseInt(data.monthlyIncome.replace(/\D/g, ''));
+                        
+                        // Adaptive logic - deeper questions for qualified prospects
+                        if (age >= 25 && age <= 40 && income >= 4000) {
+                            return "Over the next 5-10 years, what are your top money goals? Building wealth, buying property, starting a business, early retirement?";
+                        }
+                        return "What made you start looking into life insurance right now?";
+                    }
+                },
+                {
+                    id: 'financial_goals',
+                    field: 'financialGoals',
+                    conditional: (data) => {
+                        const age = parseInt(data.age);
+                        const income = parseInt(data.monthlyIncome.replace(/\D/g, ''));
+                        return age >= 25 && age <= 40 && income >= 4000;
+                    },
+                    followUp: () => "What age would you like to be work-optional if everything went right?"
+                },
+                {
+                    id: 'retirement_age',
+                    field: 'targetRetirementAge',
+                    conditional: (data) => {
+                        const age = parseInt(data.age);
+                        const income = parseInt(data.monthlyIncome.replace(/\D/g, ''));
+                        return age >= 25 && age <= 40 && income >= 4000;
+                    },
+                    followUp: () => "When you think about money for the future, what feels more important - guaranteed stability or higher growth potential with some market exposure?"
+                },
+                {
+                    id: 'risk_tolerance',
+                    field: 'riskTolerance',
+                    options: ['Guaranteed and stable', 'Some growth potential', 'Higher growth, okay with risk', 'Mix of both'],
+                    conditional: (data) => {
+                        const age = parseInt(data.age);
+                        const income = parseInt(data.monthlyIncome.replace(/\D/g, ''));
+                        return age >= 25 && age <= 40 && income >= 4000;
+                    },
+                    followUp: () => "Do you currently save or invest anything monthly? If so, roughly how much?"
+                },
+                {
+                    id: 'current_savings',
+                    field: 'monthlySavings',
+                    followUp: () => "On a scale of 1-10, how disciplined do you feel with money right now? 1 = chaos, 10 = totally dialed in."
+                },
+                {
+                    id: 'financial_discipline',
+                    field: 'financialDiscipline',
+                    validate: (val) => !isNaN(val) && val >= 1 && val <= 10,
+                    followUp: () => "Almost done! How would you rate your overall health? Excellent, good, fair, or needs work?"
+                },
+                {
+                    id: 'health',
+                    field: 'healthStatus',
+                    options: ['Excellent', 'Good', 'Fair', 'Needs work'],
+                    followUp: () => "Do you smoke or vape nicotine?"
+                },
+                {
+                    id: 'tobacco',
+                    field: 'tobaccoUse',
+                    options: ['No', 'Yes, cigarettes', 'Yes, vape', 'Occasionally', 'Quit recently'],
+                    followUp: () => "Last question - what made you start looking into life insurance right now? New baby, business launch, just being smart, or something else?"
+                },
+                {
+                    id: 'motivation',
+                    field: 'motivation',
+                    followUp: () => null // End of conversation
+                }
+            ];
+
+            // Calculate lead quality score based on profile
+            const calculateLeadScore = (data) => {
+                let score = 0;
+                
+                // Age scoring (25-40 is ideal client range)
+                const age = parseInt(data.age);
+                if (age >= 25 && age <= 40) score += 20;
+                else if (age >= 41 && age <= 50) score += 10;
+                
+                // Income scoring (higher income means can afford better coverage)
+                const income = parseInt(data.monthlyIncome?.replace(/\D/g, '') || 0);
+                if (income >= 8000) score += 25;
+                else if (income >= 5000) score += 15;
+                else if (income >= 3000) score += 5;
+                
+                // Employment type (contractors and business owners are ideal)
+                if (data.employmentType?.includes('Contractor') || 
+                    data.employmentType?.includes('Business Owner') || 
+                    data.employmentType?.includes('Self-employed')) {
+                    score += 20;
+                }
+                
+                // Family responsibility (protection is more urgent)
+                if (data.relationshipStatus?.includes('Married') || 
+                    data.relationshipStatus?.includes('parent')) {
+                    score += 15;
+                }
+                if (data.numberOfKids > 0) score += 5;
+                
+                // Housing (homeownership shows financial stability)
+                if (data.housingStatus === 'Own my home') score += 10;
+                
+                // Financial discipline (can sustain premiums)
+                const discipline = parseInt(data.financialDiscipline || 0);
+                if (discipline >= 7) score += 10;
+                else if (discipline >= 5) score += 5;
+                
+                // Living benefits awareness (educated buyer)
+                if (data.livingBenefitsAwareness?.includes("that's why I'm here")) score += 10;
+                
+                // Health (better health means better rates and approval)
+                if (data.healthStatus === 'Excellent') score += 5;
+                if (data.tobaccoUse === 'No') score += 5;
+                
+                return score;
+            };
+
+            // Determine which products to recommend based on profile
+            const determineProductRecommendations = (data) => {
+                const recommendations = [];
+                const age = parseInt(data.age);
+                const income = parseInt(data.monthlyIncome?.replace(/\D/g, '') || 0);
+                const hasFamily = data.relationshipStatus?.includes('Married') || data.relationshipStatus?.includes('parent');
+                
+                // Term Life - basic protection for families and dependents
+                if (hasFamily || data.dependents) {
+                    recommendations.push('Term Life');
+                }
+                
+                // IUL - for higher earners wanting growth and living benefits
+                if (income >= 5000 && age <= 50 && 
+                    (data.livingBenefitsAwareness?.includes('here') || 
+                     data.riskTolerance?.includes('growth'))) {
+                    recommendations.push('Indexed Universal Life (IUL)');
+                }
+                
+                // Whole Life - for those wanting guaranteed stability
+                if (data.riskTolerance?.includes('stable') || 
+                    data.riskTolerance?.includes('Mix')) {
+                    recommendations.push('Whole Life');
+                }
+                
+                // Annuities - for retirement planning
+                if ((age >= 45 || parseInt(data.financialDiscipline) >= 7) && 
+                    data.financialGoals?.toLowerCase().includes('retirement')) {
+                    recommendations.push('Annuities');
+                }
+                
+                return recommendations;
+            };
+
+            // Send all collected data to your server, which writes to Google Sheets
+            const sendToGoogleSheets = async (data) => {
+                const leadScore = calculateLeadScore(data);
+                const recommendations = determineProductRecommendations(data);
+                
+                // Build the complete lead data package to send to Google Sheets
+                const leadData = {
+                    firstName: data.firstName,
+                    email: data.email,
+                    phone: data.phone,
+                    age: data.age,
+                    relationshipStatus: data.relationshipStatus,
+                    numberOfKids: data.numberOfKids || 0,
+                    housingStatus: data.housingStatus,
+                    occupation: data.occupation,
+                    workDuration: data.workDuration,
+                    employmentType: data.employmentType,
+                    monthlyIncome: data.monthlyIncome,
+                    sideIncome: data.sideIncome,
+                    incomeLossImpact: data.incomeLossImpact,
+                    dependents: data.dependents,
+                    existingCoverage: data.existingCoverage,
+                    coverageDetails: data.coverageDetails || 'N/A',
+                    livingBenefitsAwareness: data.livingBenefitsAwareness,
+                    financialGoals: data.financialGoals || 'Not specified',
+                    targetRetirementAge: data.targetRetirementAge || 'Not specified',
+                    riskTolerance: data.riskTolerance || 'Not specified',
+                    monthlySavings: data.monthlySavings,
+                    financialDiscipline: data.financialDiscipline,
+                    healthStatus: data.healthStatus,
+                    tobaccoUse: data.tobaccoUse,
+                    motivation: data.motivation,
+                    leadScore: leadScore,
+                    recommendations: recommendations.join(', ')
+                };
+
+                try {
+                    // Sending data to your Render server which saves to Google Sheets
+                    const response = await fetch('https://liquid-legacy-chatbot-server.onrender.com/api/sheets-submit', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(leadData)
+                    });
+
+                    if (response.ok) {
+                        console.log('Lead successfully sent to Google Sheets');
+                        return { score: leadScore, recommendations, success: true };
+                    } else {
+                        console.error('Failed to send lead to Google Sheets');
+                        return { score: leadScore, recommendations, success: false };
+                    }
+                } catch (error) {
+                    console.error('Error sending to Google Sheets:', error);
+                    return { score: leadScore, recommendations, success: false };
+                }
+            };
+
+            // Add bot message with typing simulation
+            const addBotMessage = (text, delay = 0) => {
+                setTimeout(() => {
+                    setIsTyping(true);
+                    setTimeout(() => {
+                        setMessages(prev => [...prev, { text, sender: 'bot' }]);
+                        setIsTyping(false);
+                    }, Math.min(text.length * 10, 2000));
+                }, delay);
+            };
+
+            // Handle when user sends a message
+            const handleSendMessage = () => {
+                if (!currentInput.trim()) return;
+
+                // Add user's message to chat
+                setMessages(prev => [...prev, { text: currentInput, sender: 'user' }]);
+                
+                // Store the answer
+                const currentQ = questionFlow[questionIndex];
+                const newUserData = { ...userData, [currentQ.field]: currentInput };
+                setUserData(newUserData);
+                
+                // Clear input field
+                setCurrentInput('');
+                
+                // Determine and ask next question
+                setTimeout(() => {
+                    const followUpText = currentQ.followUp(newUserData);
+                    
+                    if (followUpText) {
+                        addBotMessage(followUpText, 500);
+                        
+                        // Move to next question, skipping any that don't apply
+                        let nextIndex = questionIndex + 1;
+                        while (nextIndex < questionFlow.length && 
+                               questionFlow[nextIndex].conditional && 
+                               !questionFlow[nextIndex].conditional(newUserData)) {
+                            nextIndex++;
+                        }
+                        
+                        if (nextIndex < questionFlow.length) {
+                            setQuestionIndex(nextIndex);
+                        } else {
+                            completeConversation(newUserData);
+                        }
+                    } else {
+                        completeConversation(newUserData);
+                    }
+                }, 500);
+            };
+
+            // Handle conversation completion and data submission
+            const completeConversation = async (finalData) => {
+                setConversationComplete(true);
+                
+                addBotMessage(`${finalData.firstName}, thanks for taking the time to walk through this with me. I've got everything I need.`, 1000);
+                
+                setTimeout(() => {
+                    addBotMessage("Based on what you've shared, I'm analyzing the best coverage options for your specific situation...", 2000);
+                }, 2500);
+                
+                const { score, recommendations } = await sendToGoogleSheets(finalData);
+                
+                setTimeout(() => {
+                    let responseMessage = `Perfect! Here's what makes sense for you: `;
+                    
+                    if (recommendations.length > 0) {
+                        responseMessage += `I'm seeing ${recommendations.join(', ')} as strong fits. `;
+                    }
+                    
+                    responseMessage += `One of our licensed advisors from Liquid Legacy Financial will reach out within 24 hours to walk you through exactly how these work and design something custom for your goals. Sound good?`;
+                    
+                    addBotMessage(responseMessage, 3000);
+                }, 5500);
+                
+                setTimeout(() => {
+                    addBotMessage("Check your email - I sent you a summary of what we discussed. Talk soon! 🛡️", 4500);
+                }, 9000);
+            };
+
+            // Handle option button clicks
+            const handleOptionClick = (option) => {
+                setCurrentInput(option);
+                setTimeout(() => handleSendMessage(), 100);
+            };
+
+            // Get current question's multiple choice options if available
+            const getCurrentOptions = () => {
+                if (conversationComplete || isTyping) return null;
+                const currentQ = questionFlow[questionIndex];
+                return currentQ?.options || null;
+            };
+
+            // Render the chatbot UI
+            return (
+                <div className="flex flex-col h-screen max-w-2xl mx-auto bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+                    {/* Header */}
+                    <div className="bg-slate-800 text-white p-6 shadow-lg border-b border-blue-500">
+                        <div className="flex items-center gap-3">
+                            <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                            <div>
+                                <h1 className="text-2xl font-bold">Liquid Legacy Financial</h1>
+                                <p className="text-sm text-blue-200">Protecting what matters, building what lasts</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Messages Area */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        {messages.map((msg, idx) => (
+                            <div
+                                key={idx}
+                                className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                            >
+                                <div
+                                    className={`max-w-xs md:max-w-md px-4 py-3 rounded-2xl ${
+                                        msg.sender === 'user'
+                                            ? 'bg-blue-600 text-white rounded-br-none'
+                                            : 'bg-slate-700 text-white rounded-bl-none'
+                                    }`}
+                                >
+                                    {msg.text}
+                                </div>
+                            </div>
+                        ))}
+                        
+                        {/* Typing Indicator */}
+                        {isTyping && (
+                            <div className="flex justify-start">
+                                <div className="bg-slate-700 text-white px-4 py-3 rounded-2xl rounded-bl-none">
+                                    <div className="flex gap-1">
+                                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Input Area */}
+                    {!conversationComplete && (
+                        <div className="p-4 bg-slate-800 border-t border-slate-700">
+                            {getCurrentOptions() ? (
+                                <div className="grid grid-cols-1 gap-2">
+                                    {getCurrentOptions().map((option, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => handleOptionClick(option)}
+                                            className="px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors text-left"
+                                        >
+                                            {option}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={currentInput}
+                                        onChange={(e) => setCurrentInput(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                                        placeholder="Type your answer..."
+                                        className="flex-1 px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
+                                        disabled={isTyping}
+                                    />
+                                    <button
+                                        onClick={handleSendMessage}
+                                        disabled={isTyping || !currentInput.trim()}
+                                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    {/* Footer */}
+                    <div className="text-center text-xs text-slate-400 py-2 bg-slate-800">
+                        Secure & Confidential • Liquid Legacy Financial © 2024
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the chatbot to the page
+        ReactDOM.render(<InsuranceChatbot />, document.getElementById('chatbot-root'));
+    </script>
+</body>
+</html>
