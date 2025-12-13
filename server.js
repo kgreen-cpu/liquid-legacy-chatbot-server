@@ -15,7 +15,7 @@ app.use(express.json());
 // Google Sheets configuration - reading directly from JSON file
 let credentials;
 try {
-    credentials = require('./liquid-legacy-chatbot-4c90d5ba6bd3.json');
+    credentials = require('./liquid-legacy-chatbot-aeca1c1964cd.json');
 } catch (e) {
     console.error('Could not load credentials file:', e.message);
 }
