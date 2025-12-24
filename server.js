@@ -386,7 +386,7 @@ app.post('/api/book-appointment', async (req, res) => {
 // ============================================================
 app.post('/api/contact', async (req, res) => {
     try {
-        const { name, email, phone, message } = req.body;
+        const { name, email, phone, message, coverages } = req.body;
         console.log('Contact form submission from:', name, email);
 
         const emailHtml = `
@@ -400,6 +400,11 @@ app.post('/api/contact', async (req, res) => {
                     <p style="margin: 5px 0;"><strong>Name:</strong> ${name}</p>
                     <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${email}" style="color: #d4a84b;">${email}</a></p>
                     ${phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> <a href="tel:${phone}" style="color: #d4a84b;">${phone}</a></p>` : ''}
+                    
+                    ${coverages ? `
+                    <h3 style="color: #d4a84b; margin-top: 20px;">Interested In</h3>
+                    <p style="background: #2d2d2d; padding: 15px; border-radius: 8px;">${coverages}</p>
+                    ` : ''}
                     
                     ${message ? `
                     <h3 style="color: #d4a84b; margin-top: 20px;">Message</h3>
@@ -417,7 +422,7 @@ app.post('/api/contact', async (req, res) => {
             from: `"Liquid Legacy Website" <${process.env.EMAIL_USER}>`,
             to: process.env.EMAIL_USER,
             replyTo: email,
-            subject: `📬 New Contact: ${name}`,
+            subject: `📬 New Contact: ${name}${coverages ? ' - ' + coverages.split(',')[0] : ''}`,
             html: emailHtml
         });
 
