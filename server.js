@@ -21,7 +21,7 @@ try {
     console.error('Could not load credentials file:', e.message);
 }
 
-const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || '1L0lhvXC1OPLjwsTsKiiTTh1g7ZSq1NmNuN2UYfPDEJI';
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || '1d-Zfe4nkCrWyFGFXl3fdFthVrn1_4udK9O4cYKeWlRM';
 
 // Email configuration
 const emailTransporter = nodemailer.createTransport({
@@ -171,6 +171,50 @@ app.post('/api/book-appointment', async (req, res) => {
         const parts = formattedDateTime.split(' at ');
         const formattedDate = parts[0] || 'Date TBD';
         const formattedTime = parts[1] || 'Time TBD';
+        
+        // Check if this time slot is already booked
+        try {
+            const authClient = await getAuthenticatedClient();
+            const sheets = google.sheets({ version: 'v4', auth: authClient });
+            
+            // Get all existing bookings from the Bookings sheet
+            const existingBookings = await sheets.spreadsheets.values.get({
+                spreadsheetId: GOOGLE_SHEET_ID,
+                range: 'Bookings!A:B'
+            });
+            
+            const rows = existingBookings.data.values || [];
+            const requestedTime = data.appointment_date; // ISO string
+            
+            // Check if this exact time is already booked
+            for (const row of rows) {
+                if (row[0] === requestedTime) {
+                    console.log('Time slot already booked:', formattedDateTime);
+                    return res.status(409).json({ 
+                        success: false, 
+                        error: 'TIME_SLOT_TAKEN',
+                        message: 'Sorry, this time slot was just booked by someone else. Please select a different time.'
+                    });
+                }
+            }
+            
+            // Time is available - save the booking to the Bookings sheet
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: GOOGLE_SHEET_ID,
+                range: 'Bookings!A:B',
+                valueInputOption: 'USER_ENTERED',
+                insertDataOption: 'INSERT_ROWS',
+                resource: { 
+                    values: [[requestedTime, formattedDateTime]] 
+                }
+            });
+            
+            console.log('Time slot reserved:', formattedDateTime);
+            
+        } catch (sheetError) {
+            console.error('Error checking availability:', sheetError.message);
+            // If we can't check, proceed anyway (fail open) but log the error
+        }
 
         // Build email to Killyan
         const emailHtml = `
@@ -389,8 +433,10 @@ app.post('/api/book-appointment', async (req, res) => {
 app.post('/api/contact', async (req, res) => {
     try {
         const { name, email, phone, message, coverages } = req.body;
+        const firstName = name.split(' ')[0];
         console.log('Contact form submission from:', name, email);
 
+        // Email to Killyan
         const emailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background: #0a0a0a; padding: 30px; text-align: center;">
@@ -428,7 +474,50 @@ app.post('/api/contact', async (req, res) => {
             html: emailHtml
         });
 
-        console.log('Contact form email sent');
+        console.log('Contact form email sent to owner');
+
+        // Auto-reply to the person who filled out the form
+        const autoReplyHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: #0a0a0a; padding: 30px; text-align: center;">
+                    <h1 style="color: #d4a84b; margin: 0;">Thanks for Reaching Out!</h1>
+                </div>
+                
+                <div style="background: #1a1a1a; padding: 30px; color: #ffffff;">
+                    <p style="font-size: 16px; line-height: 1.6;">Hi ${firstName},</p>
+                    
+                    <p style="font-size: 16px; line-height: 1.6;">Thanks for getting in touch — I appreciate you taking the time to reach out!</p>
+                    
+                    <p style="font-size: 16px; line-height: 1.6;">I've received your message and will personally get back to you within 24 hours.</p>
+                    
+                    <div style="background: rgba(212,168,75,0.1); border-left: 3px solid #d4a84b; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                        <h3 style="color: #d4a84b; margin: 0 0 12px; font-size: 17px;">Want to skip the wait?</h3>
+                        <p style="font-size: 15px; line-height: 1.6; margin: 0; color: #ccc;">If you'd like to chat sooner, feel free to book a quick intro call directly on my calendar. It's just a casual 15-minute conversation to see if I can help — no pressure, no sales pitch.</p>
+                        <a href="https://liquidlegacyfinancial.com/book.html" style="display: inline-block; margin-top: 15px; padding: 12px 24px; background: linear-gradient(135deg, #d4a84b 0%, #b8923f 100%); color: #0a0a0a; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 14px;">Book a Quick Call →</a>
+                    </div>
+                    
+                    <p style="font-size: 16px; line-height: 1.6;">In the meantime, if you have any questions, just reply to this email and I'll get back to you as soon as I can.</p>
+                    
+                    <p style="font-size: 16px; line-height: 1.6; margin-top: 30px;">Talk soon,</p>
+                    <p style="font-size: 18px; color: #d4a84b; font-weight: bold; margin: 5px 0;">Killyan Green</p>
+                    <p style="font-size: 14px; color: #999; margin: 0;">Founder, Liquid Legacy Financial</p>
+                    <p style="font-size: 14px; color: #999; margin: 5px 0 0;"><a href="mailto:kgreen@liquidlegacyfinancial.com" style="color: #d4a84b; text-decoration: none;">kgreen@liquidlegacyfinancial.com</a></p>
+                </div>
+                
+                <div style="background: #0a0a0a; padding: 20px; text-align: center;">
+                    <p style="color: #666; margin: 0; font-size: 12px;">Liquid Legacy Financial • Protecting What Matters Most</p>
+                </div>
+            </div>
+        `;
+
+        await emailTransporter.sendMail({
+            from: `"Killyan Green - Liquid Legacy Financial" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: `Got your message, ${firstName}!`,
+            html: autoReplyHtml
+        });
+
+        console.log('Auto-reply sent to contact');
         res.json({ success: true, message: 'Message sent successfully' });
 
     } catch (error) {
