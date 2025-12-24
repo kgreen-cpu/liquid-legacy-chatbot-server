@@ -165,19 +165,12 @@ app.post('/api/book-appointment', async (req, res) => {
         const data = req.body;
         console.log('Booking appointment for:', data.lead_first_name, data.lead_last_name);
 
-        // Format the appointment details
-        const appointmentDate = new Date(data.appointment_date);
-        const formattedDate = appointmentDate.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-        const formattedTime = appointmentDate.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
+        // Use the pre-formatted date/time from the client (already in user's timezone)
+        // Format: "Thu, Dec 26 at 4:00 PM"
+        const formattedDateTime = data.appointment_formatted || '';
+        const parts = formattedDateTime.split(' at ');
+        const formattedDate = parts[0] || 'Date TBD';
+        const formattedTime = parts[1] || 'Time TBD';
 
         // Build email to Killyan
         const emailHtml = `
@@ -247,32 +240,41 @@ app.post('/api/book-appointment', async (req, res) => {
         const confirmationHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background: #0a0a0a; padding: 30px; text-align: center;">
-                    <h1 style="color: #d4a84b; margin: 0;">You're Booked!</h1>
+                    <h1 style="color: #d4a84b; margin: 0;">You're All Set!</h1>
                 </div>
                 
                 <div style="background: #1a1a1a; padding: 30px; color: #ffffff;">
-                    <p style="font-size: 16px;">Hi ${data.lead_first_name},</p>
+                    <p style="font-size: 16px; line-height: 1.6;">Hi ${data.lead_first_name},</p>
                     
-                    <p style="font-size: 16px;">Your ${data.session_type} has been confirmed!</p>
+                    <p style="font-size: 16px; line-height: 1.6;">Thank you for taking the time to schedule a call with me — I'm looking forward to connecting with you!</p>
                     
                     <div style="background: #2d2d2d; padding: 25px; border-radius: 8px; margin: 25px 0; text-align: center;">
                         <p style="margin: 0 0 10px; font-size: 14px; color: #999;">YOUR APPOINTMENT</p>
                         <p style="margin: 0; font-size: 22px; color: #d4a84b; font-weight: bold;">${formattedDate}</p>
                         <p style="margin: 5px 0 0; font-size: 20px; color: #fff;">${formattedTime}</p>
-                        <p style="margin: 10px 0 0; font-size: 14px; color: #999;">${data.session_duration} minutes</p>
+                        <p style="margin: 10px 0 0; font-size: 14px; color: #999;">30-45 minutes</p>
                     </div>
                     
-                    <p style="font-size: 16px;">I'll give you a call at <strong>${data.lead_phone}</strong> at the scheduled time. If that number has changed or you prefer a different contact method, just reply to this email.</p>
+                    <p style="font-size: 16px; line-height: 1.6;">I'll reach out to you at <strong style="color: #d4a84b;">${data.lead_phone}</strong> at your scheduled time.</p>
                     
-                    <p style="font-size: 16px;">This is a no-pressure conversation to review your situation and options. Come with any questions you have — I'm here to help you understand your choices.</p>
+                    <div style="background: rgba(212,168,75,0.1); border-left: 3px solid #d4a84b; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                        <h3 style="color: #d4a84b; margin: 0 0 15px; font-size: 18px;">What to Expect</h3>
+                        <p style="font-size: 15px; line-height: 1.6; margin: 0 0 12px; color: #ccc;"><strong style="color: #fff;">Our First Call</strong> is all about getting to know <em>you</em>. I want to understand your life, your family, your goals, what keeps you up at night, and what legacy you want to leave behind. This isn't a sales pitch — it's a conversation to truly understand your unique situation and what matters most to you.</p>
+                        <p style="font-size: 15px; line-height: 1.6; margin: 0; color: #ccc;"><strong style="color: #fff;">Our Second Call</strong> is where I'll present customized protection strategies tailored specifically to your risks, budget, lifestyle, and protection needs. Everything I recommend will be based on what we discussed in our first conversation — because cookie-cutter solutions don't protect real families.</p>
+                    </div>
                     
-                    <p style="font-size: 16px;">Talk soon,</p>
-                    <p style="font-size: 16px; color: #d4a84b; font-weight: bold;">Killyan Green</p>
-                    <p style="font-size: 14px; color: #999;">Liquid Legacy Financial</p>
+                    <p style="font-size: 16px; line-height: 1.6;">There's no pressure, no obligation, and no awkward sales tactics. Just an honest conversation about protecting what you've built.</p>
+                    
+                    <p style="font-size: 16px; line-height: 1.6;">If you have any questions before our call, feel free to reply to this email.</p>
+                    
+                    <p style="font-size: 16px; line-height: 1.6; margin-top: 30px;">Looking forward to speaking with you,</p>
+                    <p style="font-size: 18px; color: #d4a84b; font-weight: bold; margin: 5px 0;">Killyan Green</p>
+                    <p style="font-size: 14px; color: #999; margin: 0;">Founder, Liquid Legacy Financial</p>
+                    <p style="font-size: 14px; color: #999; margin: 5px 0 0;"><a href="mailto:kgreen@liquidlegacyfinancial.com" style="color: #d4a84b; text-decoration: none;">kgreen@liquidlegacyfinancial.com</a></p>
                 </div>
                 
                 <div style="background: #0a0a0a; padding: 20px; text-align: center;">
-                    <p style="color: #666; margin: 0; font-size: 12px;">Need to reschedule? Just reply to this email.</p>
+                    <p style="color: #666; margin: 0; font-size: 12px;">Need to reschedule? No problem — just reply to this email.</p>
                 </div>
             </div>
         `;
@@ -280,7 +282,7 @@ app.post('/api/book-appointment', async (req, res) => {
         await emailTransporter.sendMail({
             from: `"Killyan Green - Liquid Legacy Financial" <${process.env.EMAIL_USER}>`,
             to: data.lead_email,
-            subject: `Confirmed: ${data.session_type} on ${formattedDate}`,
+            subject: `Confirmed: Your Call with Killyan - ${formattedDate}`,
             html: confirmationHtml
         });
 
@@ -357,7 +359,7 @@ app.post('/api/book-appointment', async (req, res) => {
                 data.landing_page || '',
                 data.referrer || '',
                 data.session_duration || '',
-                `BOOKED: ${formattedDate} at ${formattedTime}`
+                `BOOKED: ${formattedDateTime}`
             ];
 
             await sheets.spreadsheets.values.append({
