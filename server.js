@@ -381,6 +381,55 @@ app.post('/api/book-appointment', async (req, res) => {
     }
 });
 
+// ============================================================
+// ENDPOINT 3: Contact form submission
+// ============================================================
+app.post('/api/contact', async (req, res) => {
+    try {
+        const { name, email, phone, message } = req.body;
+        console.log('Contact form submission from:', name, email);
+
+        const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: #0a0a0a; padding: 30px; text-align: center;">
+                    <h1 style="color: #d4a84b; margin: 0;">New Contact Form Submission</h1>
+                </div>
+                
+                <div style="background: #1a1a1a; padding: 30px; color: #ffffff;">
+                    <h3 style="color: #d4a84b;">Contact Details</h3>
+                    <p style="margin: 5px 0;"><strong>Name:</strong> ${name}</p>
+                    <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${email}" style="color: #d4a84b;">${email}</a></p>
+                    ${phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> <a href="tel:${phone}" style="color: #d4a84b;">${phone}</a></p>` : ''}
+                    
+                    ${message ? `
+                    <h3 style="color: #d4a84b; margin-top: 20px;">Message</h3>
+                    <p style="background: #2d2d2d; padding: 15px; border-radius: 8px; border-left: 3px solid #d4a84b;">${message}</p>
+                    ` : ''}
+                </div>
+                
+                <div style="background: #0a0a0a; padding: 20px; text-align: center;">
+                    <p style="color: #666; margin: 0; font-size: 12px;">Liquid Legacy Financial - Contact Form</p>
+                </div>
+            </div>
+        `;
+
+        await emailTransporter.sendMail({
+            from: `"Liquid Legacy Website" <${process.env.EMAIL_USER}>`,
+            to: process.env.EMAIL_USER,
+            replyTo: email,
+            subject: `📬 New Contact: ${name}`,
+            html: emailHtml
+        });
+
+        console.log('Contact form email sent');
+        res.json({ success: true, message: 'Message sent successfully' });
+
+    } catch (error) {
+        console.error('Contact form error:', error);
+        res.status(500).json({ success: false, error: 'Failed to send message' });
+    }
+});
+
 // Start the server
 app.listen(PORT, () => {
     console.log('===========================================');
@@ -388,6 +437,7 @@ app.listen(PORT, () => {
     console.log(`✓ Server running on port ${PORT}`);
     console.log(`✓ Sheets endpoint: /api/sheets-submit`);
     console.log(`✓ Booking endpoint: /api/book-appointment`);
+    console.log(`✓ Contact endpoint: /api/contact`);
     console.log(`✓ Google Sheet ID: ${GOOGLE_SHEET_ID}`);
     console.log('===========================================');
 });
