@@ -1,257 +1,393 @@
-/**
- * LIQUID LEGACY FINANCIAL - Chatbot Server v5
- * Handles lead data submission to Google Sheets
- * 
- * Deploy to: Render.com
- * Environment Variables Required:
- *   - GOOGLE_SHEET_ID: Your Google Sheet ID
- *   - GOOGLE_CREDENTIALS: JSON string of service account credentials (optional if using file)
- */
+// server.js - Liquid Legacy Financial Chatbot Server
+// Handles Google Sheets integration AND appointment booking with email notifications
 
 const express = require('express');
 const cors = require('cors');
 const { google } = require('googleapis');
+const nodemailer = require('nodemailer');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Google Sheets Authentication
-let sheetsAuth;
-
-async function initializeGoogleAuth() {
-  try {
-    // Try environment variable first (for Render)
-    if (process.env.GOOGLE_CREDENTIALS) {
-      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-      sheetsAuth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ['https://www.googleapis.com/auth/spreadsheets']
-      });
-    } else {
-      // Fall back to local file
-      sheetsAuth = new google.auth.GoogleAuth({
-        keyFile: './liquid-legacy-chatbot-4c90d5ba6bd3.json',
-        scopes: ['https://www.googleapis.com/auth/spreadsheets']
-      });
-    }
-    console.log('Google Auth initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize Google Auth:', error.message);
-  }
+// Google Sheets configuration - reading from JSON file
+let credentials;
+try {
+    credentials = require('./liquid-legacy-chatbot-4c90d5ba6bd3.json');
+} catch (e) {
+    console.error('Could not load credentials file:', e.message);
 }
 
-// Initialize auth on startup
-initializeGoogleAuth();
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || '1L0lhvXC1OPLjwsTsKiiTTh1g7ZSq1NmNuN2UYfPDEJI';
+
+// Email configuration
+const emailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+// Initialize Google Sheets API client
+async function getAuthenticatedClient() {
+    const auth = new google.auth.GoogleAuth({
+        credentials: credentials,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    return auth.getClient();
+}
 
 // Health check endpoint
 app.get('/', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'Liquid Legacy Financial Chatbot Server',
-    version: '5.0',
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', uptime: process.uptime() });
-});
-
-// Test Google Sheets connection
-app.get('/api/test-sheets', async (req, res) => {
-  try {
-    const sheets = google.sheets({ version: 'v4', auth: sheetsAuth });
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-    
-    const response = await sheets.spreadsheets.get({
-      spreadsheetId,
-      fields: 'properties.title,sheets.properties.title'
+    res.json({ 
+        status: 'Liquid Legacy Financial Server is running!',
+        endpoints: ['/api/sheets-submit', '/api/book-appointment'],
+        timestamp: new Date().toISOString()
     });
-    
-    res.json({
-      status: 'connected',
-      spreadsheet: response.data.properties.title,
-      sheets: response.data.sheets.map(s => s.properties.title)
-    });
-  } catch (error) {
-    console.error('Sheets test error:', error.message);
-    res.status(500).json({ status: 'error', message: error.message });
-  }
 });
 
-// Main endpoint - Submit lead data to Google Sheets
+// ============================================================
+// ENDPOINT 1: Save lead data to Google Sheets
+// ============================================================
 app.post('/api/sheets-submit', async (req, res) => {
-  try {
-    const data = req.body;
-    const sheets = google.sheets({ version: 'v4', auth: sheetsAuth });
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-    
-    // Map chatbot data to spreadsheet columns (must match Field Mapping sheet)
-    // Total: 62 columns (A through BJ)
-    const rowData = [
-      data.timestamp || new Date().toISOString(),
-      data.lead_first_name || '',
-      data.lead_last_name || '',
-      data.lead_email || '',
-      data.lead_phone || '',
-      data.sms_consent || '',
-      data.lead_state || '',
-      data.lead_state_other || '',
-      data.primary_focus || '',
-      data.decision_role || '',
-      // Business info
-      data.trade_type || '',
-      data.business_name || '',
-      data.years_in_business || '',
-      data.team_size || '',
-      data.annual_revenue_range || '',
-      data.tax_pain_level || '',
-      // Work/Income
-      data.employment_type || '',
-      data.occupation || '',
-      data.income_range || '',
-      data.income_stability || '',
-      // Family
-      data.has_partner || '',
-      data.partner_works || '',
-      data.partner_income_sufficiency || '',
-      data.has_kids || '',
-      data.kids_ages || '',
-      data.kids_expenses || '',
-      data.other_dependents || '',
-      // Finances
-      data.home_status || '',
-      data.mortgage_balance || '',
-      data.monthly_expenses || '',
-      data.debt_types || '',
-      data.emergency_fund || '',
-      // Risk/Priority
-      data.biggest_risk || '',
-      data.protection_priority || '',
-      // Current Coverage
-      data.has_life_insurance || '',
-      data.why_no_insurance || '',
-      data.current_coverage_amount || '',
-      data.current_policy_types || '',
-      data.coverage_confidence || '',
-      // Preferences
-      data.preference_style || '',
-      data.goal_type || '',
-      data.time_horizon || '',
-      data.funding_commitment || '',
-      data.monthly_budget || '',
-      // Health
-      data.lead_age || '',
-      data.nicotine_use || '',
-      data.health_status || '',
-      data.health_conditions || '',
-      data.health_other || '',
-      // Intent
-      data.timeline || '',
-      data.trigger_reason || '',
-      // Tracking (UTM)
-      data.utm_source || '',
-      data.utm_medium || '',
-      data.utm_campaign || '',
-      data.utm_content || '',
-      data.utm_term || '',
-      data.landing_page || '',
-      data.referrer || '',
-      // Calculated fields
-      data.lead_score || '',
-      data.lead_tier || '',
-      data.booking_type || '',
-      data.notes || ''
-    ];
-    
-    // Append to the Leads sheet
-    const response = await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: 'Leads!A:BJ',
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
-      resource: {
-        values: [rowData]
-      }
-    });
-    
-    console.log(`Lead added: ${data.lead_first_name} ${data.lead_last_name} | Tier: ${data.lead_tier} | Source: ${data.utm_source || 'direct'}`);
-    
-    res.json({
-      status: 'success',
-      message: 'Lead saved successfully',
-      updatedRange: response.data.updates.updatedRange
-    });
-    
-  } catch (error) {
-    console.error('Error saving lead:', error.message);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to save lead',
-      error: error.message
-    });
-  }
+    try {
+        const leadData = req.body;
+        console.log('Received lead data:', leadData.lead_first_name, leadData.lead_last_name);
+
+        const authClient = await getAuthenticatedClient();
+        const sheets = google.sheets({ version: 'v4', auth: authClient });
+
+        const timestamp = new Date().toISOString();
+        
+        // Build the row with all possible fields
+        const row = [
+            timestamp,
+            leadData.lead_first_name || '',
+            leadData.lead_last_name || '',
+            leadData.lead_email || '',
+            leadData.lead_phone || '',
+            leadData.lead_state || '',
+            leadData.lead_state_other || '',
+            leadData.lead_age || '',
+            leadData.primary_focus || '',
+            leadData.employment_type || '',
+            leadData.occupation || '',
+            leadData.income_range || '',
+            leadData.income_stability || '',
+            leadData.has_partner || '',
+            leadData.partner_works || '',
+            leadData.partner_income_sufficiency || '',
+            leadData.has_kids || '',
+            leadData.kids_ages || '',
+            leadData.kids_expenses || '',
+            leadData.other_dependents || '',
+            leadData.home_status || '',
+            leadData.mortgage_balance || '',
+            leadData.monthly_expenses || '',
+            leadData.debt_types || '',
+            leadData.emergency_fund || '',
+            leadData.biggest_risk || '',
+            leadData.protection_priority || '',
+            leadData.has_life_insurance || '',
+            leadData.why_no_insurance || '',
+            leadData.current_coverage_amount || '',
+            leadData.current_policy_types || '',
+            leadData.coverage_confidence || '',
+            leadData.preference_style || '',
+            leadData.goal_type || '',
+            leadData.time_horizon || '',
+            leadData.funding_commitment || '',
+            leadData.monthly_budget || '',
+            leadData.nicotine_use || '',
+            leadData.health_status || '',
+            leadData.health_conditions || '',
+            leadData.health_other || '',
+            leadData.timeline || '',
+            leadData.trigger_reason || '',
+            leadData.sms_consent || '',
+            leadData.decision_role || '',
+            leadData.trade_type || '',
+            leadData.business_name || '',
+            leadData.years_in_business || '',
+            leadData.team_size || '',
+            leadData.annual_revenue_range || '',
+            leadData.tax_pain_level || '',
+            leadData.lead_score || '',
+            leadData.lead_tier || '',
+            leadData.booking_type || '',
+            leadData.chat_completion_type || '',
+            leadData.notes || '',
+            leadData.utm_source || '',
+            leadData.utm_medium || '',
+            leadData.utm_campaign || '',
+            leadData.utm_content || '',
+            leadData.utm_term || '',
+            leadData.landing_page || '',
+            leadData.referrer || '',
+            leadData.session_duration || ''
+        ];
+
+        const response = await sheets.spreadsheets.values.append({
+            spreadsheetId: GOOGLE_SHEET_ID,
+            range: 'Sheet1!A:BL',
+            valueInputOption: 'USER_ENTERED',
+            insertDataOption: 'INSERT_ROWS',
+            resource: { values: [row] }
+        });
+
+        console.log('Successfully wrote to Google Sheets');
+        res.json({ 
+            success: true, 
+            message: 'Lead data saved successfully',
+            leadScore: leadData.lead_score,
+            leadTier: leadData.lead_tier
+        });
+
+    } catch (error) {
+        console.error('Error writing to Google Sheets:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to save lead data',
+            details: error.message 
+        });
+    }
 });
 
-// Owner referral endpoint (for non-decision makers)
-app.post('/api/owner-referral', async (req, res) => {
-  try {
-    const data = req.body;
-    const sheets = google.sheets({ version: 'v4', auth: sheetsAuth });
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-    
-    const rowData = [
-      new Date().toISOString(),
-      data.lead_first_name || '',
-      data.lead_last_name || '',
-      '', // email (referrer doesn't have)
-      '', // phone
-      '',
-      data.lead_state || '',
-      data.lead_state_other || '',
-      data.primary_focus || '',
-      'Referral', // decision_role
-      // Fill rest with empty strings
-      '', '', '', '', '', '', '', '', '', '',
-      '', '', '', '', '', '', '', '', '', '',
-      '', '', '', '', '', '', '', '', '', '',
-      '', '', '', '', '', '', '', '', '', '',
-      '', '', '', '', '', '',
-      data.utm_source || '',
-      data.utm_medium || '',
-      data.utm_campaign || '',
-      '', '', '', '',
-      '', '', '',
-      `Owner contact: ${data.owner_email || ''} ${data.owner_phone || ''}`
-    ];
-    
-    await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: 'Leads!A:BJ',
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
-      resource: { values: [rowData] }
-    });
-    
-    res.json({ status: 'success', message: 'Owner referral saved' });
-    
-  } catch (error) {
-    console.error('Error saving referral:', error.message);
-    res.status(500).json({ status: 'error', message: error.message });
-  }
+// ============================================================
+// ENDPOINT 2: Book appointment and send emails
+// ============================================================
+app.post('/api/book-appointment', async (req, res) => {
+    try {
+        const data = req.body;
+        console.log('Booking appointment for:', data.lead_first_name, data.lead_last_name);
+
+        // Format the appointment details
+        const appointmentDate = new Date(data.appointment_date);
+        const formattedDate = appointmentDate.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        const formattedTime = appointmentDate.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+
+        // Build email to Killyan
+        const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: #0a0a0a; padding: 30px; text-align: center;">
+                    <h1 style="color: #d4a84b; margin: 0;">New Appointment Booked!</h1>
+                </div>
+                
+                <div style="background: #1a1a1a; padding: 30px; color: #ffffff;">
+                    <h2 style="color: #d4a84b; margin-top: 0;">📅 ${data.session_type}</h2>
+                    
+                    <div style="background: #2d2d2d; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <p style="margin: 5px 0; font-size: 18px;"><strong>Date:</strong> ${formattedDate}</p>
+                        <p style="margin: 5px 0; font-size: 18px;"><strong>Time:</strong> ${formattedTime}</p>
+                        <p style="margin: 5px 0; font-size: 18px;"><strong>Duration:</strong> ${data.session_duration} minutes</p>
+                    </div>
+                    
+                    <h3 style="color: #d4a84b;">Contact Information</h3>
+                    <p style="margin: 5px 0;"><strong>Name:</strong> ${data.lead_first_name} ${data.lead_last_name}</p>
+                    <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${data.lead_email}" style="color: #d4a84b;">${data.lead_email}</a></p>
+                    <p style="margin: 5px 0;"><strong>Phone:</strong> <a href="tel:${data.lead_phone}" style="color: #d4a84b;">${data.lead_phone}</a></p>
+                    <p style="margin: 5px 0;"><strong>State:</strong> ${data.lead_state}${data.lead_state_other ? ' (' + data.lead_state_other + ')' : ''}</p>
+                    
+                    <h3 style="color: #d4a84b;">Lead Details</h3>
+                    <p style="margin: 5px 0;"><strong>Looking to protect:</strong> ${data.primary_focus || 'Not specified'}</p>
+                    <p style="margin: 5px 0;"><strong>Lead Score:</strong> ${data.lead_score || 'N/A'} (Tier ${data.lead_tier || 'N/A'})</p>
+                    <p style="margin: 5px 0;"><strong>Completion Type:</strong> ${data.chat_completion_type === 'quick' ? 'Quick Book (skipped questions)' : 'Full Questionnaire'}</p>
+                    
+                    ${data.income_range ? `<p style="margin: 5px 0;"><strong>Income:</strong> ${data.income_range}</p>` : ''}
+                    ${data.employment_type ? `<p style="margin: 5px 0;"><strong>Employment:</strong> ${data.employment_type}</p>` : ''}
+                    ${data.occupation ? `<p style="margin: 5px 0;"><strong>Occupation:</strong> ${data.occupation}</p>` : ''}
+                    ${data.has_partner ? `<p style="margin: 5px 0;"><strong>Relationship:</strong> ${data.has_partner}</p>` : ''}
+                    ${data.has_kids ? `<p style="margin: 5px 0;"><strong>Children:</strong> ${data.has_kids}</p>` : ''}
+                    ${data.monthly_budget ? `<p style="margin: 5px 0;"><strong>Budget:</strong> ${data.monthly_budget}/month</p>` : ''}
+                    ${data.timeline ? `<p style="margin: 5px 0;"><strong>Timeline:</strong> ${data.timeline}</p>` : ''}
+                    
+                    ${data.notes ? `
+                    <h3 style="color: #d4a84b;">Notes</h3>
+                    <p style="background: #2d2d2d; padding: 15px; border-radius: 8px; border-left: 3px solid #d4a84b;">${data.notes}</p>
+                    ` : ''}
+                    
+                    ${data.utm_source ? `
+                    <h3 style="color: #d4a84b;">Source</h3>
+                    <p style="margin: 5px 0;"><strong>UTM Source:</strong> ${data.utm_source}</p>
+                    ${data.utm_campaign ? `<p style="margin: 5px 0;"><strong>Campaign:</strong> ${data.utm_campaign}</p>` : ''}
+                    ${data.utm_medium ? `<p style="margin: 5px 0;"><strong>Medium:</strong> ${data.utm_medium}</p>` : ''}
+                    ` : ''}
+                </div>
+                
+                <div style="background: #0a0a0a; padding: 20px; text-align: center;">
+                    <p style="color: #666; margin: 0; font-size: 12px;">Liquid Legacy Financial</p>
+                </div>
+            </div>
+        `;
+
+        // Send email to Killyan
+        await emailTransporter.sendMail({
+            from: `"Liquid Legacy Financial" <${process.env.EMAIL_USER}>`,
+            to: process.env.EMAIL_USER,
+            subject: `🗓️ New ${data.session_type} - ${data.lead_first_name} ${data.lead_last_name} - ${formattedDate} at ${formattedTime}`,
+            html: emailHtml
+        });
+
+        console.log('Email sent to owner');
+
+        // Send confirmation email to the lead
+        const confirmationHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: #0a0a0a; padding: 30px; text-align: center;">
+                    <h1 style="color: #d4a84b; margin: 0;">You're Booked!</h1>
+                </div>
+                
+                <div style="background: #1a1a1a; padding: 30px; color: #ffffff;">
+                    <p style="font-size: 16px;">Hi ${data.lead_first_name},</p>
+                    
+                    <p style="font-size: 16px;">Your ${data.session_type} has been confirmed!</p>
+                    
+                    <div style="background: #2d2d2d; padding: 25px; border-radius: 8px; margin: 25px 0; text-align: center;">
+                        <p style="margin: 0 0 10px; font-size: 14px; color: #999;">YOUR APPOINTMENT</p>
+                        <p style="margin: 0; font-size: 22px; color: #d4a84b; font-weight: bold;">${formattedDate}</p>
+                        <p style="margin: 5px 0 0; font-size: 20px; color: #fff;">${formattedTime}</p>
+                        <p style="margin: 10px 0 0; font-size: 14px; color: #999;">${data.session_duration} minutes</p>
+                    </div>
+                    
+                    <p style="font-size: 16px;">I'll give you a call at <strong>${data.lead_phone}</strong> at the scheduled time. If that number has changed or you prefer a different contact method, just reply to this email.</p>
+                    
+                    <p style="font-size: 16px;">This is a no-pressure conversation to review your situation and options. Come with any questions you have — I'm here to help you understand your choices.</p>
+                    
+                    <p style="font-size: 16px;">Talk soon,</p>
+                    <p style="font-size: 16px; color: #d4a84b; font-weight: bold;">Killyan Green</p>
+                    <p style="font-size: 14px; color: #999;">Liquid Legacy Financial</p>
+                </div>
+                
+                <div style="background: #0a0a0a; padding: 20px; text-align: center;">
+                    <p style="color: #666; margin: 0; font-size: 12px;">Need to reschedule? Just reply to this email.</p>
+                </div>
+            </div>
+        `;
+
+        await emailTransporter.sendMail({
+            from: `"Killyan Green - Liquid Legacy Financial" <${process.env.EMAIL_USER}>`,
+            to: data.lead_email,
+            subject: `Confirmed: ${data.session_type} on ${formattedDate}`,
+            html: confirmationHtml
+        });
+
+        console.log('Confirmation email sent to lead');
+
+        // Also save booking to Google Sheets
+        try {
+            const authClient = await getAuthenticatedClient();
+            const sheets = google.sheets({ version: 'v4', auth: authClient });
+
+            const timestamp = new Date().toISOString();
+            const row = [
+                timestamp,
+                data.lead_first_name || '',
+                data.lead_last_name || '',
+                data.lead_email || '',
+                data.lead_phone || '',
+                data.lead_state || '',
+                data.lead_state_other || '',
+                data.lead_age || '',
+                data.primary_focus || '',
+                data.employment_type || '',
+                data.occupation || '',
+                data.income_range || '',
+                data.income_stability || '',
+                data.has_partner || '',
+                data.partner_works || '',
+                data.partner_income_sufficiency || '',
+                data.has_kids || '',
+                data.kids_ages || '',
+                data.kids_expenses || '',
+                data.other_dependents || '',
+                data.home_status || '',
+                data.mortgage_balance || '',
+                data.monthly_expenses || '',
+                data.debt_types || '',
+                data.emergency_fund || '',
+                data.biggest_risk || '',
+                data.protection_priority || '',
+                data.has_life_insurance || '',
+                data.why_no_insurance || '',
+                data.current_coverage_amount || '',
+                data.current_policy_types || '',
+                data.coverage_confidence || '',
+                data.preference_style || '',
+                data.goal_type || '',
+                data.time_horizon || '',
+                data.funding_commitment || '',
+                data.monthly_budget || '',
+                data.nicotine_use || '',
+                data.health_status || '',
+                data.health_conditions || '',
+                data.health_other || '',
+                data.timeline || '',
+                data.trigger_reason || '',
+                data.sms_consent || '',
+                data.decision_role || '',
+                data.trade_type || '',
+                data.business_name || '',
+                data.years_in_business || '',
+                data.team_size || '',
+                data.annual_revenue_range || '',
+                data.tax_pain_level || '',
+                data.lead_score || '',
+                data.lead_tier || '',
+                data.booking_type || data.session_type || '',
+                data.chat_completion_type || '',
+                data.notes || '',
+                data.utm_source || '',
+                data.utm_medium || '',
+                data.utm_campaign || '',
+                data.utm_content || '',
+                data.utm_term || '',
+                data.landing_page || '',
+                data.referrer || '',
+                data.session_duration || '',
+                `BOOKED: ${formattedDate} at ${formattedTime}`
+            ];
+
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: GOOGLE_SHEET_ID,
+                range: 'Sheet1!A:BM',
+                valueInputOption: 'USER_ENTERED',
+                insertDataOption: 'INSERT_ROWS',
+                resource: { values: [row] }
+            });
+
+            console.log('Booking saved to Google Sheets');
+        } catch (sheetError) {
+            console.error('Error saving to sheets (booking still confirmed):', sheetError.message);
+        }
+
+        res.json({ success: true, message: 'Appointment booked successfully' });
+
+    } catch (error) {
+        console.error('Booking error:', error);
+        res.status(500).json({ success: false, error: 'Failed to book appointment', details: error.message });
+    }
 });
 
-// Start server
+// Start the server
 app.listen(PORT, () => {
-  console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║   LIQUID LEGACY FINANCIAL - Chatbot Server v5             ║
-║   Running on port ${PORT}                                     ║
-║   Ready to capture leads!                                 ║
-╚═══════════════════════════════════════════════════════════╝
-  `);
+    console.log('===========================================');
+    console.log('🚀 Liquid Legacy Financial Server');
+    console.log(`✓ Server running on port ${PORT}`);
+    console.log(`✓ Sheets endpoint: /api/sheets-submit`);
+    console.log(`✓ Booking endpoint: /api/book-appointment`);
+    console.log(`✓ Google Sheet ID: ${GOOGLE_SHEET_ID}`);
+    console.log('===========================================');
 });
