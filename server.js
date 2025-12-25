@@ -133,7 +133,7 @@ app.post('/api/sheets-submit', async (req, res) => {
 
         const response = await sheets.spreadsheets.values.append({
             spreadsheetId: GOOGLE_SHEET_ID,
-            range: 'Sheet1!A:BL',
+            range: 'Leads!A:BL',
             valueInputOption: 'USER_ENTERED',
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [row] }
@@ -408,7 +408,7 @@ app.post('/api/book-appointment', async (req, res) => {
 
             await sheets.spreadsheets.values.append({
                 spreadsheetId: GOOGLE_SHEET_ID,
-                range: 'Sheet1!A:BM',
+                range: 'Leads!A:BM',
                 valueInputOption: 'USER_ENTERED',
                 insertDataOption: 'INSERT_ROWS',
                 resource: { values: [row] }
