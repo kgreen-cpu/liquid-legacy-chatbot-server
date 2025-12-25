@@ -250,85 +250,95 @@ app.post('/api/book-appointment', async (req, res) => {
             console.error('Error checking availability:', sheetError.message);
         }
 
-        // Send email to business owner with comprehensive lead info
-        const ownerEmailContent = `
-🔔 NEW APPOINTMENT BOOKED
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CLIENT INFO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Name: ${data.lead_first_name} ${data.lead_last_name}
-Email: ${data.lead_email}
-Phone: ${data.lead_phone}
-Age: ${data.lead_age || 'N/A'}
-State: ${data.lead_state || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-APPOINTMENT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Date/Time: ${formattedDateTime}
-Session Type: ${data.session_type || 'Consultation'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LEAD QUALITY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lead Score: ${data.lead_score || 'N/A'}
-Lead Tier: ${data.lead_tier || 'N/A'}
-Primary Focus: ${data.primary_focus || 'N/A'}
-Timeline: ${data.timeline || 'N/A'}
-Trigger: ${data.trigger_reason || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FINANCIAL PICTURE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Employment: ${data.employment_type || 'N/A'}
-Occupation: ${data.occupation || 'N/A'}
-Income Range: ${data.income_range || 'N/A'}
-Monthly Budget: ${data.monthly_budget || 'N/A'}
-Lump Sum Available: ${data.lump_sum_available || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FAMILY SITUATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Relationship: ${data.has_partner || 'N/A'}
-Has Kids: ${data.has_kids || 'N/A'}
-Other Dependents: ${data.other_dependents || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CURRENT COVERAGE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Has Life Insurance: ${data.has_life_insurance || 'N/A'}
-Coverage Amount: ${data.current_coverage_amount || 'N/A'}
-Coverage Confidence: ${data.coverage_confidence || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PREFERENCES & GOALS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Goal Type: ${data.goal_type || 'N/A'}
-Preference Style: ${data.preference_style || 'N/A'}
-Time Horizon: ${data.time_horizon || 'N/A'}
-Protection Priority: ${data.protection_priority || 'N/A'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HEALTH INFO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Health Status: ${data.health_status || 'N/A'}
-Nicotine: ${data.nicotine_use || 'N/A'}
-Conditions: ${data.health_conditions || 'None noted'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-NOTES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${data.notes || 'None'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Send branded HTML email to business owner
+        const sessionDuration = data.session_duration || (data.session_type?.includes('Business') ? '45' : data.session_type?.includes('Family') ? '30' : '15');
+        
+        const ownerEmailHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Georgia, 'Times New Roman', serif; background-color: #f5f5f5;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #0a0a0a; padding: 30px; text-align: center;">
+                            <h1 style="color: #d4a84b; margin: 0; font-size: 28px; font-weight: normal;">New Appointment Booked!</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 30px;">
+                            
+                            <!-- Session Type Header -->
+                            <p style="font-size: 14px; color: #888; margin: 0 0 5px 0;">📅</p>
+                            <h2 style="color: #d4a84b; font-size: 24px; margin: 0 0 20px 0; font-weight: normal;">${data.session_type || 'Consultation'}</h2>
+                            
+                            <!-- Appointment Box -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; border-radius: 8px; margin-bottom: 30px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Date:</strong> <span style="color: #555;">${formattedDate}</span></p>
+                                        <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Time:</strong> <span style="color: #555;">${formattedTime}</span></p>
+                                        <p style="margin: 0;"><strong style="color: #333;">Duration:</strong> <span style="color: #555;">${sessionDuration} minutes</span></p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Contact Information -->
+                            <h3 style="color: #d4a84b; font-size: 18px; margin: 0 0 15px 0; font-weight: normal;">Contact Information</h3>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Name:</strong> <span style="color: #555;">${data.lead_first_name} ${data.lead_last_name}</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Email:</strong> <a href="mailto:${data.lead_email}" style="color: #d4a84b;">${data.lead_email}</a></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Phone:</strong> <a href="tel:${data.lead_phone}" style="color: #d4a84b;">${data.lead_phone}</a></p>
+                            <p style="margin: 0 0 25px 0;"><strong style="color: #333;">State:</strong> <span style="color: #555;">${data.lead_state || 'N/A'}</span></p>
+                            
+                            <!-- Lead Details -->
+                            <h3 style="color: #d4a84b; font-size: 18px; margin: 0 0 15px 0; font-weight: normal;">Lead Details</h3>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Looking to protect:</strong> <span style="color: #555;">${data.primary_focus || 'N/A'}</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Lead Score:</strong> <span style="color: #555;">${data.lead_score || 'N/A'} (Tier ${data.lead_tier || '?'})</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Completion Type:</strong> <span style="color: #555;">Full Questionnaire</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Income:</strong> <span style="color: #555;">${data.income_range || 'N/A'}</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Monthly Expenses:</strong> <span style="color: #555;">${data.monthly_expenses || 'N/A'}</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Employment:</strong> <span style="color: #555;">${data.employment_type || 'N/A'}</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Occupation:</strong> <span style="color: #555;">${data.occupation || 'N/A'}</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Relationship:</strong> <span style="color: #555;">${data.has_partner || 'N/A'}</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Children:</strong> <span style="color: #555;">${data.has_kids || 'N/A'}</span></p>
+                            <p style="margin: 0 0 8px 0;"><strong style="color: #333;">Budget:</strong> <span style="color: #555;">${data.monthly_budget || 'N/A'}/month</span></p>
+                            <p style="margin: 0 0 25px 0;"><strong style="color: #333;">Timeline:</strong> <span style="color: #555;">${data.timeline || 'N/A'}</span></p>
+                            
+                            <!-- Notes -->
+                            <h3 style="color: #d4a84b; font-size: 18px; margin: 0 0 15px 0; font-weight: normal;">Notes</h3>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border-left: 4px solid #d4a84b; background-color: #faf8f5;">
+                                <tr>
+                                    <td style="padding: 15px;">
+                                        <p style="margin: 0; color: #555; font-size: 14px; line-height: 1.6;">${data.notes || 'No additional notes'}</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
         `.trim();
 
         await emailTransporter.sendMail({
             from: process.env.EMAIL_USER,
             to: process.env.EMAIL_USER,
             subject: `🔔 New Booking: ${data.lead_first_name} ${data.lead_last_name} - Tier ${data.lead_tier || '?'} - ${formattedDateTime}`,
-            text: ownerEmailContent
+            html: ownerEmailHTML
         });
         console.log('✓ Email sent to owner');
 
