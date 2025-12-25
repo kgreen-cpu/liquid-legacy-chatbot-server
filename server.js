@@ -332,45 +332,111 @@ ${data.notes || 'None'}
         });
         console.log('✓ Email sent to owner');
 
-        // Send confirmation email to lead
-        const leadEmailContent = `
-Hi ${data.lead_first_name},
-
-Your appointment with Liquid Legacy Financial has been confirmed!
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📅 APPOINTMENT DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Date: ${formattedDate}
-Time: ${formattedTime}
-Type: ${data.session_type || 'Consultation'}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 WHAT TO EXPECT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• We'll review your current situation
-• Discuss your protection goals
-• Explore options that fit your needs and budget
-• Answer any questions you have
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📞 NEED TO RESCHEDULE?
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Just reply to this email or call us directly.
-
-Looking forward to speaking with you!
-
-Best,
-Killyan Green
-Liquid Legacy Financial
-kgreen@liquidlegacyfinancial.com
+        // Send branded HTML confirmation email to lead
+        const sessionDuration = data.session_duration || '30-45';
+        const leadEmailHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Georgia, 'Times New Roman', serif; background-color: #f5f5f5;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #0a0a0a; padding: 30px; text-align: center;">
+                            <h1 style="color: #d4a84b; margin: 0; font-size: 28px; font-weight: normal;">You're All Set!</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="font-size: 18px; color: #333; margin: 0 0 20px 0;">Hi ${data.lead_first_name},</p>
+                            
+                            <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 30px 0;">
+                                Thank you for taking the time to schedule a call with me — I'm looking forward to connecting with you!
+                            </p>
+                            
+                            <!-- Appointment Box -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #faf8f5; border-radius: 8px; margin-bottom: 30px;">
+                                <tr>
+                                    <td style="padding: 25px; text-align: center;">
+                                        <p style="color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 10px 0;">YOUR APPOINTMENT</p>
+                                        <p style="color: #d4a84b; font-size: 24px; font-weight: bold; margin: 0 0 5px 0;">${formattedDate}</p>
+                                        <p style="color: #333; font-size: 20px; margin: 0 0 5px 0;">${formattedTime}</p>
+                                        <p style="color: #888; font-size: 14px; margin: 0;">${sessionDuration} minutes</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+                                I'll reach out to you at <span style="color: #d4a84b; font-weight: bold;">${data.lead_phone}</span> at your scheduled time.
+                            </p>
+                            
+                            <!-- What to Expect Box -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border-left: 4px solid #d4a84b; background-color: #faf8f5; margin-bottom: 30px;">
+                                <tr>
+                                    <td style="padding: 25px;">
+                                        <p style="color: #d4a84b; font-size: 18px; font-weight: bold; margin: 0 0 15px 0;">What to Expect</p>
+                                        
+                                        <p style="font-size: 15px; color: #555; line-height: 1.7; margin: 0 0 15px 0;">
+                                            <strong style="color: #333;">Our First Call</strong> is all about getting to know <em>you</em>. I want to understand your life, your family, your goals, what keeps you up at night, and what legacy you want to leave behind. This isn't a sales pitch — it's a conversation to truly understand your unique situation and what matters most to you.
+                                        </p>
+                                        
+                                        <p style="font-size: 15px; color: #555; line-height: 1.7; margin: 0;">
+                                            <strong style="color: #333;">Our Second Call</strong> is where I'll present customized protection strategies tailored specifically to your risks, budget, lifestyle, and protection needs. Everything I recommend will be based on what we discussed in our first conversation — because cookie-cutter solutions don't protect real families.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 15px 0;">
+                                There's no pressure, no obligation, and no awkward sales tactics. Just an honest conversation about protecting what you've built.
+                            </p>
+                            
+                            <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 30px 0;">
+                                If you have any questions before our call, feel free to reply to this email.
+                            </p>
+                            
+                            <p style="font-size: 16px; color: #555; margin: 0 0 25px 0;">Looking forward to speaking with you,</p>
+                            
+                            <!-- Signature -->
+                            <p style="margin: 0;">
+                                <span style="color: #d4a84b; font-size: 20px; font-weight: bold;">Killyan Green</span><br>
+                                <span style="color: #666; font-size: 14px;">Founder, Liquid Legacy Financial</span><br>
+                                <a href="mailto:kgreen@liquidlegacyfinancial.com" style="color: #d4a84b; font-size: 14px; text-decoration: none;">kgreen@liquidlegacyfinancial.com</a>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f5f5f5; padding: 20px; text-align: center; border-top: 1px solid #eee;">
+                            <p style="color: #999; font-size: 13px; margin: 0;">
+                                Need to reschedule? No problem — just reply to this email.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
         `.trim();
 
         await emailTransporter.sendMail({
             from: process.env.EMAIL_USER,
             to: data.lead_email,
-            subject: `✅ Appointment Confirmed - ${formattedDate} at ${formattedTime}`,
-            text: leadEmailContent
+            subject: `You're All Set! - ${formattedDate} at ${formattedTime}`,
+            html: leadEmailHTML
         });
         console.log('✓ Confirmation email sent to lead');
 
