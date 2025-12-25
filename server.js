@@ -13,12 +13,17 @@ const PORT = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-// Google Sheets configuration - reading from JSON file
+// Google Sheets configuration - reading from environment variable
 let credentials;
-try {
-    credentials = require('./liquid-legacy-chatbot-4c90d5ba6bd3.json');
-} catch (e) {
-    console.error('Could not load credentials file:', e.message);
+if (process.env.GOOGLE_CREDENTIALS) {
+    try {
+        credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+        console.log('✓ Loaded Google credentials from environment variable');
+    } catch (e) {
+        console.error('Error parsing GOOGLE_CREDENTIALS:', e.message);
+    }
+} else {
+    console.error('GOOGLE_CREDENTIALS environment variable not set');
 }
 
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID || '1d-Zfe4nkCrWyFGFXl3fdFthVrn1_4udK9O4cYKeWlRM';
