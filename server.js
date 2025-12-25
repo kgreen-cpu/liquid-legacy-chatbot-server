@@ -343,7 +343,6 @@ app.post('/api/book-appointment', async (req, res) => {
         console.log('✓ Email sent to owner');
 
         // Send branded HTML confirmation email to lead
-        const sessionDuration = data.session_duration || '30-45';
         const leadEmailHTML = `
 <!DOCTYPE html>
 <html>
