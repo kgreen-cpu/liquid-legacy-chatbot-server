@@ -209,7 +209,7 @@ app.post('/api/book-appointment', async (req, res) => {
                 range: 'Bookings!A:B'
             });
             
-            const requestedTime = data.appointment_time;
+            const requestedTime = data.appointment_date;  // ISO timestamp from chatbot
             const rows = existingBookings.data.values || [];
             
             for (const row of rows) {
@@ -231,7 +231,7 @@ app.post('/api/book-appointment', async (req, res) => {
                 insertDataOption: 'INSERT_ROWS',
                 resource: { 
                     values: [[
-                        requestedTime,                    // A: Booking Timestamp
+                        requestedTime,                    // A: Booking Timestamp (ISO)
                         formattedDateTime,                // B: Formatted DateTime
                         data.lead_first_name || '',       // C: First Name
                         data.lead_last_name || '',        // D: Last Name
